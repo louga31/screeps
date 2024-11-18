@@ -1,13 +1,14 @@
 import { RoleHandler } from "./roles";
 
 export const roleUpgrader: RoleHandler = {
-	body: [WORK, CARRY, MOVE],
-	count: 1,
+	body: [WORK, WORK, CARRY, CARRY, MOVE, MOVE],
+	count: 2,
 	run: function (creep: Creep) {
 		if (creep.memory.working && creep.store[RESOURCE_ENERGY] == 0) {
 			creep.memory.working = false;
 			creep.say('🔄 harvest');
 		}
+
 		if (!creep.memory.working && creep.store.getFreeCapacity() == 0) {
 			creep.memory.working = true;
 			creep.say('⚡ upgrade');
@@ -19,9 +20,15 @@ export const roleUpgrader: RoleHandler = {
 			}
 		}
 		else {
-			const sources = creep.room.find(FIND_SOURCES);
-			if (creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
-				creep.moveTo(sources[0], { visualizePathStyle: { stroke: '#ffaa00' } });
+			const sources = creep.pos.findClosestByPath(FIND_SOURCES);
+
+			if (!sources) {
+				console.error('No sources found')
+				return
+			}
+
+			if (creep.harvest(sources) == ERR_NOT_IN_RANGE) {
+				creep.moveTo(sources, { visualizePathStyle: { stroke: '#ffaa00' } });
 			}
 		}
 	}

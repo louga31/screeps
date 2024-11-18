@@ -1,4 +1,4 @@
-import { SourceMapConsumer } from "source-map";
+import {SourceMapConsumer} from 'source-map';
 import * as _ from 'lodash';
 
 export class ErrorMapper {
@@ -7,14 +7,25 @@ export class ErrorMapper {
 
 	public static get consumer(): SourceMapConsumer {
 		if (this._consumer == null) {
-			this._consumer = new SourceMapConsumer(require("main.js.map"));
+			let sourceMap;
+			try {
+				sourceMap = require('main.map.js');
+				this._consumer = new SourceMapConsumer(sourceMap);
+			}
+			catch {
+				try {
+					sourceMap = require('main.js.map');
+					this._consumer = new SourceMapConsumer(sourceMap);
+				}
+				catch {}
+			}
 		}
 
-		return this._consumer;
+		return this._consumer!;
 	}
 
 	// Cache previously mapped traces to improve performance
-	public static cache: { [key: string]: string } = {};
+	public static cache: Record<string, string> = {};
 
 	/**
 	 * Generates a stack trace using a source map generate original symbol names.
@@ -26,42 +37,46 @@ export class ErrorMapper {
 	 * @returns {string} The source-mapped stack trace
 	 */
 	public static sourceMappedStackTrace(error: Error | string): string {
-		const stack: string = error instanceof Error ? (error.stack as string) : error;
+		const stack: string = error instanceof Error ? (error.stack!) : error;
 		if (Object.prototype.hasOwnProperty.call(this.cache, stack)) {
 			return this.cache[stack];
 		}
 
 		// eslint-disable-next-line no-useless-escape
-		const re = /^\s+at\s+(.+?\s+)?\(?([0-z._\-\\\/]+):(\d+):(\d+)\)?$/gm;
+		const re = /^\s+at\s+(.+?\s+)?\(?([0-z._\-\\/]+):(\d+):(\d+)\)?$/gm;
 		let match: RegExpExecArray | null;
 		let outStack = error.toString();
 
 		while ((match = re.exec(stack))) {
-			if (match[2] === "main") {
+			if (match[2] === 'main') {
 				const pos = this.consumer.originalPositionFor({
-					column: parseInt(match[4], 10),
-					line: parseInt(match[3], 10)
+					column: Number.parseInt(match[4], 10),
+					line: Number.parseInt(match[3], 10),
 				});
 
 				if (pos.line != null) {
 					if (pos.name) {
 						outStack += `\n    at ${pos.name} (${pos.source}:${pos.line}:${pos.column})`;
-					} else {
-						if (match[1]) {
-							// no original source file name known - use file name from given trace
-							outStack += `\n    at ${match[1]} (${pos.source}:${pos.line}:${pos.column})`;
-						} else {
-							// no original source file name known or in given trace - omit name
-							outStack += `\n    at ${pos.source}:${pos.line}:${pos.column}`;
-						}
 					}
-				} else {
-					// no known position
-					break;
+					else if (match[1]) {
+						// No original source file name known - use file name from given trace
+						outStack += `\n    at ${match[1]} (${pos.source}:${pos.line}:${pos.column})`;
+					}
+					else {
+						// No original source file name known or in given trace - omit name
+						outStack += `\n    at ${pos.source}:${pos.line}:${pos.column}`;
+					}
 				}
-			} else {
-				// no more parseable lines
-				break;
+				else {
+					// No known position
+					outStack += '\n' + match[0];
+					continue;
+				}
+			}
+			else {
+				// Line is not source mapped.
+				outStack += '\n' + match[0];
+				continue;
 			}
 		}
 
@@ -73,17 +88,22 @@ export class ErrorMapper {
 		return () => {
 			try {
 				loop();
-			} catch (e) {
-				if (e instanceof Error) {
-					if ("sim" in Game.rooms) {
-						const message = `Source maps don't work in the simulator - displaying original error`;
-						console.log(`<span style='color:red'>${message}<br>${_.escape(e.stack)}</span>`);
-					} else {
-						console.log(`<span style='color:red'>${_.escape(this.sourceMappedStackTrace(e))}</span>`);
+			}
+			catch (error) {
+				if (error instanceof Error) {
+					if ('sim' in Game.rooms) {
+						const message = 'Source maps don\'t work in the simulator - displaying original error';
+						console.log(`<span style='color:red'>${message}<br>${_.escape(error.stack)}</span>`);
 					}
-				} else {
-					// can't handle it
-					throw e;
+					else {
+						const message = _.escape(this.sourceMappedStackTrace(error));
+						console.log(`<span style='color:red'>${message}</span>`);
+						Game.notify(message);
+					}
+				}
+				else {
+					// Can't handle it
+					throw error;
 				}
 			}
 		};

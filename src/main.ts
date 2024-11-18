@@ -43,8 +43,11 @@ export const loop = ErrorMapper.wrapLoop(() => {
 		if (creeps.length < handler.count) {
 			const newName = _.capitalize(roleName) + Game.time;
 
-			console.log(`Spawning new ${roleName}: ${newName}`)
-			Game.spawns['Spawn1'].spawnCreep(handler.body, newName, {memory: {role: roleName, room: 'toto', working: false}})
+
+			if (Game.spawns['Spawn1'].spawnCreep(handler.body, newName, {dryRun: true}) == 0) {
+				Game.spawns['Spawn1'].spawnCreep(handler.body, newName, {memory: {role: roleName, room: 'toto', working: false}})
+				console.log(`Spawning new ${roleName}: ${newName}`)
+			}
 		}
 	}
 
